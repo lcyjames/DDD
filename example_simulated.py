@@ -26,8 +26,8 @@ def main():
     # Smaller settings for a quick GitHub demonstration. The full study uses
     # n_pop=50 and max_iter=10000 in its reference DDD configuration.
     np.random.seed(2026)
-    weights, lambdas, ks_values = fit_sequential_ddd(
-        X_scaled, y, ncomp=3, lambda_grid=None, trace=False,
+    weights, ks_values = fit_sequential_ddd(
+        X_scaled, y, ncomp=3, trace=False,
         n_pop=20, f_scale=0.5, cr=0.7, max_iter=80
     )
     scores = X_scaled @ weights.T
@@ -45,7 +45,6 @@ def main():
     print("Final empirical KS statistics:", np.round(ks_values, 4))
     print("Projection norms:", np.round(np.linalg.norm(weights, axis=1), 6))
     print("Maximum orthogonality error:", round(float(np.max(np.abs(gram - np.eye(3)))), 12))
-    print("Penalty lambdas:", lambdas)
 
     df = pd.DataFrame(scores, columns=["DDD1", "DDD2", "DDD3"])
     df.insert(0, "Y", y)

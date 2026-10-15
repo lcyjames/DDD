@@ -5,7 +5,6 @@ algorithmic defaults. This module does not run large simulations on import.
 """
 import numpy as np
 from scipy.stats import ks_2samp
-from sklearn.model_selection import StratifiedKFold
 
 def generate_data_new(N, p, seed=None):
     np.random.seed(seed)
@@ -21,21 +20,9 @@ def generate_data_new(N, p, seed=None):
     return X, Y, ptrue
 
 
-def objective_function(z, X0, X1, penalty_lambda=0.0):
-    """
-    Calculates the penalized KS statistic for data projected onto z.
-    Objective = KS_Stat - lambda * ||z||_1
-    """
-    proj0 = X0 @ z
-    proj1 = X1 @ z
-    stat, _ = ks_2samp(proj0, proj1)
-    
-    # Regularization: 
-    # We maximize (KS - penalty). 
-    # L1 norm (Lasso) encourages sparsity.
-    penalty = penalty_lambda * np.sum(np.abs(z))
-    
-    return stat - penalty
+def objective_function(z, X0, X1):
+    """Two-sample empirical KS statistic of the scores projected onto z."""
+    return float(ks_2samp(X0 @ z, X1 @ z).statistic)
 
 
 def repair_vector(u, previous_components):
@@ -58,8 +45,7 @@ def repair_vector(u, previous_components):
 
 def differential_evolution_ddd(X0, X1, prev_comps,
     n_pop=50, f_scale=0.5, cr=0.7,
-    max_iter=10000, penalty_lambda=0.0,
-    init_seed=None
+    max_iter=10000, init_seed=None
 ):
     p = X0.shape[1]
 
@@ -75,7 +61,7 @@ def differential_evolution_ddd(X0, X1, prev_comps,
     # Initial repair and evaluation
     for i in range(n_pop):
         pop[i] = repair_vector(pop[i], prev_comps)
-        fitness[i] = objective_function(pop[i], X0, X1, penalty_lambda)
+        fitness[i] = objective_function(pop[i], X0, X1)
         
     best_idx = np.argmax(fitness)
     best_z = pop[best_idx].copy()
@@ -102,7 +88,7 @@ def differential_evolution_ddd(X0, X1, prev_comps,
             u = repair_vector(u, prev_comps)
             
             # Selection
-            f_new = objective_function(u, X0, X1, penalty_lambda)
+            f_new = objective_function(u, X0, X1)
             
             if f_new > fitness[i]:
                 pop[i] = u
@@ -114,107 +100,64 @@ def differential_evolution_ddd(X0, X1, prev_comps,
     return best_z
 
 
-def tune_next_component_cv(X, Y, prev_comps, lambda_grid, trace, n_folds=5, **de_kwargs):
+def fit_sequential_ddd(X, Y, ncomp=1, trace=False, *,
+                       n_pop=50, f_scale=0.5, cr=0.7,
+                       max_iter=10000, init_seed=None):
+    """Estimate sequential unpenalized DDD components.
+
+    Parameters
+    ----------
+    X : array-like, shape (n_samples, n_features)
+        Predictor matrix, normally standardized on the training data.
+    Y : array-like, shape (n_samples,)
+        Binary labels coded 0 (control) and 1 (case).
+    ncomp : int, default 1
+        Number of mutually orthogonal loading directions to extract.
+    trace : bool, default False
+        Print per-component KS statistics.
+    n_pop, f_scale, cr, max_iter :
+        Differential-evolution settings. The research configuration uses
+        n_pop=50, f_scale=0.5, cr=0.7 and max_iter=10000.
+    init_seed : int or None
+        Optional seed used to initialize the DE population for each component.
+        Other DE random draws use NumPy's current global RNG state.
+
+    Returns
+    -------
+    weights : ndarray, shape (ncomp, n_features)
+        Estimated unit-norm loading vectors, one vector per row.
+    ks_values : ndarray, shape (ncomp,)
+        Empirical (in-sample) two-sample KS objective for each component.
     """
-    Performs CV to find the best lambda for the *current* component (k),
-    given that components 1 to k-1 (prev_comps) are fixed.
-    """
-    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
-    results = {}
+    X = np.asarray(X, dtype=float)
+    Y = np.asarray(Y)
+    if X.ndim != 2 or Y.ndim != 1 or X.shape[0] != Y.size:
+        raise ValueError("X must be 2D and Y must have one label per row")
+    n, p = X.shape
+    if not (1 <= ncomp <= p):
+        raise ValueError("ncomp must be between 1 and the number of predictors")
+    if not (np.any(Y == 0) and np.any(Y == 1)) or not np.all(np.isin(Y, [0, 1])):
+        raise ValueError("Y must contain both binary classes 0 and 1")
+    if n_pop < 4:
+        raise ValueError("n_pop must be at least 4")
 
-    # Reduce DE computational load during CV (optional but recommended)
-    cv_de_kwargs = de_kwargs.copy()
-    if 'n_pop' not in cv_de_kwargs: cv_de_kwargs['n_pop'] = 20
-    if 'max_iter' not in cv_de_kwargs: cv_de_kwargs['max_iter'] = 20
-    
-    if(trace):
-        print(f"    > Tuning lambda for component {len(prev_comps) + 1}...")
-
-    for lam in lambda_grid:
-        fold_scores = []
-        
-        for train_idx, test_idx in skf.split(X, Y):
-            X_train, Y_train = X[train_idx], Y[train_idx]
-            X_test, Y_test = X[test_idx], Y[test_idx]
-            
-            X0_tr = X_train[Y_train == 0]
-            X1_tr = X_train[Y_train == 1]
-            
-            # 1. Estimate direction on Training Data
-            # Note: We pass 'prev_comps' here. The new direction must be 
-            # orthogonal to the GLOBAL previous components.
-            z_fold = differential_evolution_ddd(
-                X0_tr, X1_tr, prev_comps=prev_comps, 
-                penalty_lambda=lam, **cv_de_kwargs
-            )
-            
-            # 2. Evaluate on Test Data (Unpenalized KS)
-            X0_te = X_test[Y_test == 0]
-            X1_te = X_test[Y_test == 1]
-            score = objective_function(z_fold, X0_te, X1_te, penalty_lambda=0.0)
-            fold_scores.append(score)
-            
-        avg_score = np.mean(fold_scores)
-        results[lam] = avg_score
-        # print(f"      [Lambda {lam:.2f}] CV Score: {avg_score:.4f}")
-
-    best_lambda = max(results, key=results.get) 
-    if(trace):
-        print(f" Selected Lambda: {best_lambda} (CV Score: {results[best_lambda]:.4f})")
-    return best_lambda
-
-
-def fit_sequential_ddd(X, Y, ncomp=1, lambda_grid=None, trace=False, **de_kwargs):
-    """
-    Parameters:
-    - lambda_grid: List of floats. If provided, CV is performed for each component.
-                   If None, lambda=0 is used for all components.
-    - de_kwargs: Arguments passed to differential_evolution_ddd (n_pop, max_iter).
-    """
-    X0 = X[Y==0]
-    X1 = X[Y==1]
-    
+    X0, X1 = X[Y == 0], X[Y == 1]
     found_vectors = []
-    final_lambdas = []
-    final_scores = []
-    
-    if(trace):
-        print(f"Starting Sequential DDD for {ncomp} components...")
-    
+    ks_values = []
+
+    if trace:
+        print(f"Starting sequential DDD for {ncomp} components")
+
     for k in range(ncomp):
-        if(trace):
-            print(f"\n--- Component {k+1} ---")
-        
-        # 1. Determine Lambda for this component
-        if lambda_grid is not None and len(lambda_grid) > 0:
-            # Run CV to find optimal lambda_k given z_1...z_{k-1}
-            best_lam = tune_next_component_cv(
-                X, Y, prev_comps=found_vectors, trace=trace,
-                lambda_grid=lambda_grid, n_folds=5, **de_kwargs
-            )
-        else:
-            best_lam = 0.0
-            if(trace):
-                print("      No lambda_grid provided. Using lambda=0.0")
-            
-        final_lambdas.append(best_lam)
-        
-        # 2. Fit Final Component on Full Data
-        if(trace):
-            print(f"    > Fitting final vector with lambda={best_lam}...")
         z_k = differential_evolution_ddd(
-            X0, X1, prev_comps=found_vectors, 
-            penalty_lambda=best_lam, **de_kwargs
+            X0, X1, prev_comps=found_vectors,
+            n_pop=n_pop, f_scale=f_scale, cr=cr,
+            max_iter=max_iter, init_seed=init_seed,
         )
-        
-        # 3. Store Results
         found_vectors.append(z_k)
-        
-        # Calculate scores for reporting
-        raw_ks = objective_function(z_k, X0, X1, penalty_lambda=0.0)
-        final_scores.append(raw_ks)
-        
-        if(trace):
-            print(f" > Done. Raw KS: {raw_ks:.4f}")
-        
-    return np.array(found_vectors), final_lambdas, np.array(final_scores)
+        score = objective_function(z_k, X0, X1)
+        ks_values.append(score)
+        if trace:
+            print(f"  Component {k + 1}: KS={score:.4f}")
+
+    return np.stack(found_vectors), np.asarray(ks_values)

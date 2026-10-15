@@ -1,52 +1,39 @@
 # DDD
 
-**DDD (Distributional Divergence Decomposition)** is a supervised dimension-reduction method for binary outcomes proposed in *Kolmogorov–Smirnov-Based Supervised Dimension Reduction for Gene Expression Classification* by Chun Yin Lee, Yuke Wang, and Kin Yau Wong. It extracts informative linear components by maximizing the two-sample **Kolmogorov–Smirnov (KS)** statistic. The constrained, nonsmooth optimization is handled by **differential evolution (DE)**.
+**DDD (Distributional Divergence Decomposition)** is a supervised dimension-reduction method for binary outcomes proposed in *Kolmogorov–Smirnov-Based Supervised Dimension Reduction for Gene Expression Classification* by Chun Yin Lee, Yuke Wang, and Kin Yau Wong. DDD extracts linear combinations of predictors that maximize the empirical two-sample **Kolmogorov–Smirnov (KS)** statistic. The constrained, non-differentiable optimization is performed by **differential evolution (DE)**.
 
-This repository illustrates the proposed method using a **simulated dataset**, rather than requiring TCGA files. The example follows **Scenario III** of the uploaded simulation code. The original full-scale sensitivity-study script is retained under [`scripts/`](scripts/Scenario_III_NP_sensitivity_original.py).
-
-## Method
-
-For observations $X_i\in\mathbb R^p$ and binary labels $Y_i\in\{0,1\}$, the $m$-th DDD loading vector is estimated by
-
-$$
-\widehat z_m=\mathop{\arg\max}_{\|z\|_2=1,\;z^\top\widehat z_j=0\ (j<m)}
-\sup_{t\in\mathbb R}\left|\widehat F_{z^\top X\mid Y=1}(t)-\widehat F_{z^\top X\mid Y=0}(t)\right|.
-$$
-
-Its score is $\xi_{im}=X_i^\top\widehat z_m$. DDD finds sequential **orthogonal loading vectors**; their projected scores need not be statistically uncorrelated. A larger empirical KS value indicates greater separation of the projected class-conditional empirical distributions, not necessarily better out-of-sample classification.
+This repository provides a **single simulated dataset illustration**: generate binary-response data, fit DDD, and examine the extracted components. No TCGA data are required.
 
 ## How to import the functions
 
-Install Python dependencies:
+Install Python 3 and the dependencies from the repository folder:
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-From the repository folder:
+Import the functions in Python:
 
 ```python
 from ddd import generate_data_new, fit_sequential_ddd
 ```
 
-Alternatively, run the ready-to-use example:
+Alternatively, run the complete demonstration:
 
 ```bash
 python example_simulated.py
 ```
 
-This example does not download or require any external dataset.
-
 ## Usage
 
-The demonstration centers on **two functions**:
+The module provides two main functions:
 
 | Function | Description |
 | --- | --- |
-| `generate_data_new(N, p, seed=None)` | Generate correlated Gaussian predictors, binary outcomes, and true response probabilities for Scenario III |
-| `fit_sequential_ddd(X, Y, ncomp=1, lambda_grid=None, trace=False, **de_kwargs)` | Extract successive KS-maximizing directions using differential evolution; returns loadings, penalty parameters, and empirical KS values |
+| `generate_data_new(N, p, seed=None)` | Generate **one** dataset with correlated Gaussian predictors and a binary response |
+| `fit_sequential_ddd(X, Y, ncomp=1, trace=False, ...)` | Estimate successive unpenalized DDD loading vectors and their empirical KS values |
 
-Supporting functions in `ddd.py` include `objective_function`, `repair_vector`, `differential_evolution_ddd`, and `tune_next_component_cv`. The README uses the **unpenalized DDD** method (`lambda_grid=None`), as in the central formulation of the manuscript. Optional L1 penalization is retained from the uploaded source but is not part of this illustration.
+Internally, `ddd.py` also defines `objective_function`, `repair_vector`, and `differential_evolution_ddd` to evaluate the KS criterion and perform constrained differential evolution.
 
 ### `generate_data_new`
 
@@ -54,10 +41,10 @@ Supporting functions in `ddd.py` include `objective_function`, `repair_vector`, 
 generate_data_new(N, p, seed=None)
 ```
 
-This generates the Scenario III data from the uploaded simulation script:
+The example uses the nonlinear data-generating model (Scenario III) from the manuscript:
 
 $$
-X\sim N_p(0,\Sigma),\qquad \Sigma_{ij}=0.5^{|i-j|},
+X\sim N_p(0,\Sigma), \qquad \Sigma_{ij}=0.5^{|i-j|},
 $$
 
 $$
@@ -66,78 +53,104 @@ $$
 P(Y=1\mid X)=\frac{1}{1+\exp[-3\tanh(\eta)]}.
 $$
 
-The code sets `theta0 = -median(raw_eta)` for the **generated sample** to obtain an approximately balanced outcome distribution. `p` must be at least 5.
+The code chooses `theta0 = -np.median(raw_eta)` within the generated sample to obtain approximately balanced classes.
 
 | Argument | Description |
 | --- | --- |
-| `N` | Number of simulated subjects |
-| `p` | Number of predictors (`p >= 5`) |
-| `seed` | Random seed for reproducibility |
+| `N` | Number of observations |
+| `p` | Number of predictors; **at least 5** |
+| `seed` | Random seed for reproducible data generation |
 
-Returns `X` (an `N × p` NumPy array), `Y` (a binary vector of length `N`), and `ptrue` (the true conditional outcome probabilities). The source generator sets the global NumPy seed when `seed` is supplied.
+Returns `X` (shape `N × p`), `Y` (binary vector of length `N`), and `ptrue` (true response probabilities).
 
 ### `fit_sequential_ddd`
 
 ```python
 fit_sequential_ddd(
-    X, Y, ncomp=1, lambda_grid=None, trace=False,
-    n_pop=50, f_scale=0.5, cr=0.7, max_iter=10000
+    X, Y, ncomp=1, trace=False,
+    n_pop=50, f_scale=0.5, cr=0.7,
+    max_iter=10000, init_seed=None
 )
 ```
 
+Given standardized predictors and class labels, the method estimates the loading vectors sequentially:
+
+$$
+\widehat z_m=\underset{\|z\|_2=1,\ z^\top\widehat z_j=0\ (j<m)}{\arg\max}
+\sup_t\left|\widehat F_{z^\top X\mid Y=1}(t)-\widehat F_{z^\top X\mid Y=0}(t)\right|.
+$$
+
+Each loading vector has unit Euclidean norm and is orthogonal to previously extracted loading vectors. Orthogonality of loadings **does not guarantee uncorrelated component scores**. The objective is unpenalized; there is **no lambda argument**.
+
 | Argument | Description |
 | --- | --- |
-| `X` | **Standardized** predictors, shape `N × p` |
-| `Y` | Binary outcome vector coded `0` and `1` |
-| `ncomp` | Number of DDD components (`1 <= ncomp <= p`) |
-| `lambda_grid` | `None` for unpenalized DDD; optional candidate L1 penalties in the source |
-| `trace` | Print progress messages when `True` |
-| `n_pop` | DE population size (at least 4) |
-| `f_scale` | DE mutation scale factor; `0.5` in the manuscript setting |
-| `cr` | DE crossover probability; `0.7` in the manuscript setting |
-| `max_iter` | Maximum DE generations per component; `10000` in the paper's reference configuration |
+| `X` | Standardized predictor matrix, shape `N × p` |
+| `Y` | Binary response vector containing both 0 and 1 |
+| `ncomp` | Number of extracted directions (`1 <= ncomp <= p`) |
+| `trace` | Print empirical KS values during fitting |
+| `n_pop` | Number of DE candidates per generation (at least 4) |
+| `f_scale` | Differential-evolution mutation scale (default `0.5`) |
+| `cr` | Crossover probability (default `0.7`) |
+| `max_iter` | Number of DE generations **per component** (default `10000`) |
+| `init_seed` | Optional initialization seed for DE candidates; the remaining random draws use NumPy's active RNG |
 
-Returns `weights`, `lambdas`, and `ks_values`, where `weights` has shape `(ncomp, p)` and **each row is a unit-norm loading vector**, `lambdas` contains the chosen penalties (zero without tuning), and `ks_values` contains the final **training-sample** KS statistic of each component.
+Returns `weights`, an array of shape `(ncomp, p)` with one unit-norm loading vector per row, and `ks_values`, the corresponding **in-sample** two-sample KS statistics. The projected scores are computed by `X @ weights.T`.
 
-The `ddd.py` estimator is derived from the uploaded Scenario III script and retains the function names and optimizer defaults. One numerical safeguard is improved: if a candidate becomes nearly zero after orthogonal projection, the replacement is **reprojected** before normalization.
-
-## Example: DDD with simulated Scenario III data
+## Example: generate one dataset and estimate DDD
 
 ```python
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from ddd import generate_data_new, fit_sequential_ddd
 
-# Simulate 200 subjects and 10 correlated predictors.
+# Generate a single simulated dataset (200 subjects, 10 predictors).
 X, Y, ptrue = generate_data_new(N=200, p=10, seed=1234)
 
-# Use training-sample standardization before DDD.
+# Standardize the data used for fitting.
 X_scaled = StandardScaler().fit_transform(X)
 
-# Quick illustration: 80 generations (not the paper's 10,000).
+# Quick demonstration: 80 DE generations and 20 candidates.
 np.random.seed(2026)
-weights, lambdas, ks_values = fit_sequential_ddd(
-    X_scaled, Y, ncomp=3, lambda_grid=None,
+weights, ks_values = fit_sequential_ddd(
+    X_scaled, Y, ncomp=3,
     n_pop=20, f_scale=0.5, cr=0.7, max_iter=80
 )
 
-scores = X_scaled @ weights.T  # shape: (200, 3)
+# Project observations onto the estimated DDD directions.
+scores = X_scaled @ weights.T
 print("KS objectives:", np.round(ks_values, 4))
 print("Loading-vector inner products:\n", np.round(weights @ weights.T, 5))
 ```
 
-Expected structures:
+Output from this example:
 
-| Object | Shape / meaning |
+```text
+KS objectives: [0.4366 0.3043 0.2747]
+Loading-vector inner products:
+ [[ 1. -0. -0.]
+ [-0.  1. -0.]
+ [-0. -0.  1.]]
+```
+
+The three KS statistics measure the observed distributional separation along each extracted direction. The approximately identity-valued inner-product matrix verifies the unit-norm and mutual orthogonality constraints. These are **training-sample** results, not held-out predictive performance.
+
+For a scatterplot and saved outputs, run `python example_simulated.py`:
+
+![First two DDD scores for the simulated observations](example_outputs/ddd_simulated_scores.png)
+
+The shortened settings make this example practical to run on a personal computer. To use the full optimizer reference settings, adjust `n_pop=50` and `max_iter=10000`, recognizing that computation will be substantially longer.
+
+## Files
+
+| File | Description |
 | --- | --- |
-| `X` | `(200, 10)` simulated covariate matrix |
-| `Y` | `(200,)` binary outcomes |
-| `ptrue` | `(200,)` true conditional probabilities |
-| `weights` | `(3, 10)` three DDD loading vectors |
-| `scores` | `(200, 3)` extracted DDD scores |
-| `lambdas` | Three zeros for unpenalized DDD |
-| `ks_values` | Three KS values in `[0, 1]` (training data) |
-
+| `ddd.py` | Data generator and DDD estimator, with internal optimization functions |
+| `example_simulated.py` | End-to-end simulation and DDD illustration on **one dataset** |
+| `requirements.txt` | Required Python packages |
+| `example_outputs/ddd_simulated_scores.csv` | Simulated labels, true probabilities, and DDD scores |
+| `example_outputs/ddd_weights.csv` | Estimated loading vectors |
+| `example_outputs/ddd_simulated_scores.png` | Scatterplot of the first two DDD components |
+| `example_outputs/summary.json` | Example parameters, KS objectives, and orthogonality check |
 
 ## Citation
 
@@ -145,6 +158,7 @@ Lee, C. Y., Wang, Y., and Wong, K. Y. *Kolmogorov–Smirnov-Based Supervised Dim
 
 ## Notes
 
-- The simulated data contain no actual gene-expression measurements.
-- Different random seeds or DE settings can produce different loading vectors and empirical KS values. DE does not guarantee a global maximum.
-- No external data files or R packages are required for the standalone illustration.
+- This illustration uses simulated data, not patient measurements.
+- The optimizer is stochastic and does not guarantee a global maximizer.
+- Higher empirical KS values indicate stronger *in-sample* distributional separation; they do not alone establish predictive accuracy.
+- No external data files or R packages are required.
