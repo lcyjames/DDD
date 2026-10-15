@@ -6,14 +6,14 @@ This repository illustrates the proposed method using a **simulated dataset**, r
 
 ## Method
 
-For observations \(X_i\in\mathbb R^p\) and binary labels \(Y_i\in\{0,1\}\), the \(m\)-th DDD loading vector is estimated by
+For observations $X_i\in\mathbb R^p$ and binary labels $Y_i\in\{0,1\}$, the $m$-th DDD loading vector is estimated by
 
 $$
 \widehat z_m=\mathop{\arg\max}_{\|z\|_2=1,\;z^\top\widehat z_j=0\ (j<m)}
 \sup_{t\in\mathbb R}\left|\widehat F_{z^\top X\mid Y=1}(t)-\widehat F_{z^\top X\mid Y=0}(t)\right|.
 $$
 
-Its score is \(\xi_{im}=X_i^\top\widehat z_m\). DDD finds sequential **orthogonal loading vectors**; their projected scores need not be statistically uncorrelated. A larger empirical KS value indicates greater separation of the projected class-conditional empirical distributions, not necessarily better out-of-sample classification.
+Its score is $\xi_{im}=X_i^\top\widehat z_m$. DDD finds sequential **orthogonal loading vectors**; their projected scores need not be statistically uncorrelated. A larger empirical KS value indicates greater separation of the projected class-conditional empirical distributions, not necessarily better out-of-sample classification.
 
 ## How to import the functions
 
