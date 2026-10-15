@@ -138,38 +138,6 @@ Expected structures:
 | `lambdas` | Three zeros for unpenalized DDD |
 | `ks_values` | Three KS values in `[0, 1]` (training data) |
 
-For a plotted illustration and output files, run:
-
-```bash
-python example_simulated.py
-```
-
-![DDD projected scores for simulated Scenario III data](example_outputs/ddd_simulated_scores.png)
-
-This graph is generated from a **single reproducible simulation**, not the averaged results in the research article. With the short run used here, estimates are illustrative rather than fully optimized.
-
-## Files
-
-| File | Description |
-| --- | --- |
-| `ddd.py` | Reusable core DDD code derived from the uploaded Scenario III script |
-| `example_simulated.py` | Small, reproducible simulation demonstration; creates result files and a plot |
-| `example_outputs/ddd_simulated_scores.png` | Example scatterplot of the first two DDD components |
-| `example_outputs/ddd_simulated_scores.csv` | Labels, true probabilities, and three DDD scores |
-| `example_outputs/ddd_weights.csv` | Three estimated loading vectors for the ten predictors |
-| `example_outputs/summary.json` | Simulation/optimizer settings and empirical KS values |
-| `scripts/Scenario_III_NP_sensitivity_original.py` | Supplied full Scenario III population-size sensitivity code (PCA, PLS, DDD, classifiers and summary files) |
-| `requirements.txt` | Python dependencies |
-
-## Reproducing the complete sensitivity study
-
-The source file in `scripts/` performs a much larger analysis: it simulates Scenario III for `p` in `{10, 50}`, compares `N_P` in `{10, 50, 100}`, fits DDD with `G_MAX=10000` and `M=3`, and also evaluates PCA/PLS with logistic regression, GAM and SVM. Running it can require substantial computational resources:
-
-```bash
-python scripts/Scenario_III_NP_sensitivity_original.py
-```
-
-At the end of the uploaded source, **`NUM_RUNS=200` and `MAX_WORKERS=10`**. Some preexisting comments and the source filename refer to other counts; the executable constants govern the actual run. The full script is retained for provenance; the quick example does **not** reproduce its performance tables or the manuscript's 500-replicate analysis.
 
 ## Citation
 
