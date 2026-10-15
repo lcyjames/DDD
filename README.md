@@ -146,6 +146,5 @@ Lee, C. Y., Wang, Y., and Wong, K. Y. *Kolmogorov–Smirnov-Based Supervised Dim
 ## Notes
 
 - The simulated data contain no actual gene-expression measurements.
-- DDD uses class labels to find projections, so the plotted in-sample KS statistics are not estimates of held-out predictive performance.
 - Different random seeds or DE settings can produce different loading vectors and empirical KS values. DE does not guarantee a global maximum.
 - No external data files or R packages are required for the standalone illustration.
