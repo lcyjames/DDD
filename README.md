@@ -2,7 +2,7 @@
 
 **DDD (Distributional Divergence Decomposition)** is a supervised dimension-reduction method for binary outcomes proposed in *Kolmogorov–Smirnov-Based Supervised Dimension Reduction for Gene Expression Classification* by Chun Yin Lee, Yuke Wang, and Kin Yau Wong. DDD extracts linear combinations of predictors that maximize the empirical two-sample **Kolmogorov–Smirnov (KS)** statistic. The constrained, non-differentiable optimization is performed by **differential evolution (DE)**.
 
-This repository provides a **single simulated dataset illustration**: generate binary-response data, fit DDD, and examine the extracted components. No TCGA data are required.
+This repository provides a **single simulated dataset illustration**: generate binary-response data, fit DDD, and examine the extracted components.
 
 ## How to import the functions
 
