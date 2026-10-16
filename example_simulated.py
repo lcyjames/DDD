@@ -41,17 +41,26 @@ def main():
     gram = weights @ weights.T
     assert np.allclose(gram, np.eye(3), atol=1e-8), gram
 
-    print(f"n={len(y)}, p={X.shape[1]}, class 1 count={int(y.sum())}")
-    print("Final empirical KS statistics:", np.round(ks_values, 4))
-    print("Projection norms:", np.round(np.linalg.norm(weights, axis=1), 6))
-    print("Maximum orthogonality error:", round(float(np.max(np.abs(gram - np.eye(3)))), 12))
+    # Main DDD outputs: loading vectors (ncomp x p) and scores (n x ncomp).
+    component_names = [f"DDD{j+1}" for j in range(weights.shape[0])]
+    predictor_names = [f"X{j+1}" for j in range(X.shape[1])]
+    loading_df = pd.DataFrame(weights, index=component_names, columns=predictor_names)
+    score_df = pd.DataFrame(scores, columns=component_names)
+    score_df.insert(0, "Y", y)
+    score_df.insert(1, "p_true", p_true)
 
-    df = pd.DataFrame(scores, columns=["DDD1", "DDD2", "DDD3"])
-    df.insert(0, "Y", y)
-    df.insert(1, "p_true", p_true)
-    df.to_csv(out / "ddd_simulated_scores.csv", index=False)
-    pd.DataFrame(weights, columns=[f"X{j+1}" for j in range(X.shape[1])],
-                 index=["DDD1", "DDD2", "DDD3"]).to_csv(out / "ddd_weights.csv")
+    print(f"n={len(y)}, p={X.shape[1]}, class 1 count={int(y.sum())}")
+    print(f"\nEstimated DDD loading vectors (shape {weights.shape}):")
+    print(loading_df.round(4).to_string())
+    print(f"\nFirst five observations' DDD scores (full matrix shape {scores.shape}):")
+    print(score_df.head().round(4).to_string(index=False))
+
+    # Diagnostics are secondary: KS separation and loading-vector orthogonality.
+    print("\nEmpirical KS statistics:", np.round(ks_values, 4))
+    print("Loading-vector inner products:\n", np.round(gram, 5))
+
+    loading_df.to_csv(out / "ddd_weights.csv", index_label="component")
+    score_df.to_csv(out / "ddd_simulated_scores.csv", index=False)
 
     fig, ax = plt.subplots(figsize=(6, 4.5))
     for cls, label, color in [(0, "Y=0", "#3567A5"), (1, "Y=1", "#E07A45")]:
