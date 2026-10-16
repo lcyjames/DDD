@@ -167,9 +167,13 @@ DDD3  0.1493  0.0641 -0.0834 -0.0152 -0.1571 -0.4079 -0.1579 -0.4276  0.4840  0.
 
 Each row defines a linear combination of the standardized predictors. For example, the first DDD score for observation `i` is
 
-$$
-\widehat\xi_{i1} = -0.3575\,X^{*}_{i1} + 0.1136\,X^{*}_{i2} + \cdots - 0.0992\,X^{*}_{i,10},
-$$
+```math
+\widehat{\xi}_{i,1}
+= -0.3575\,X^{\ast}_{i,1}
++ 0.1136\,X^{\ast}_{i,2}
++ \cdots
+- 0.0992\,X^{\ast}_{i,10}.
+```
 
 where $X^*$ denotes standardized predictors. These coefficients are **estimated by DDD**, not known or preassigned true weights. Their signs are arbitrary up to a component-wise reversal.
 
